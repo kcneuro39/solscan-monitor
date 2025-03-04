@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Monitor Solana transactions with specific instructions and send email notifications",
   "main": "index.js",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "start": "node index.js"
   },
