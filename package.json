@@ -1,16 +1,17 @@
 {
-  "name": "solscan-transaction-monitor",
+  "name": "solscan-monitor",
   "version": "1.0.0",
-  "description": "Monitor Solana transactions with specific instructions and send email notifications",
   "main": "index.js",
-  "engines": {
-    "node": "18.x"
-  },
   "scripts": {
-    "start": "node index.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
   "dependencies": {
-    "puppeteer": "^19.7.0",
-    "nodemailer": "^6.9.1"
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.10.0",
+    "puppeteer": "^24.3.1"
   }
 }

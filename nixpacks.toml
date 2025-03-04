@@ -1,5 +1,0 @@
-[phases.setup]
-nixPkgs = ['chromium']
-
-[variables]
-PUPPETEER_EXECUTABLE_PATH = "/nix/store/chromium-unwrapped-*/bin/chromium"
