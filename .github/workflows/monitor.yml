@@ -1,0 +1,31 @@
+name: Solscan Monitor
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Run every hour
+  workflow_dispatch:     # Allow manual runs
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm install
+        
+      - name: Install Puppeteer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+          
+      - name: Run monitor
+        run: node index.js
+        env:
+          PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
