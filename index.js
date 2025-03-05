@@ -52,6 +52,10 @@ async function checkTransactions() {
       await page.goto(`${baseUrl}&page=${currentPage}`, { waitUntil: 'networkidle2', timeout: 30000 });
       console.log(`Navigated to page ${currentPage} - Page content loaded`);
 
+      // Wait for transaction links to ensure dynamic content loads
+      await page.waitForSelector('a[href^="/tx/"]', { timeout: 5000 });
+      console.log(`Waited for transaction links on page ${currentPage}`);
+
       // Safely get page content as a string and log a snippet
       try {
         const pageContent = await page.content();
@@ -71,12 +75,14 @@ async function checkTransactions() {
       transactionLinks = [...new Set([...transactionLinks, ...pageLinks])]; // Accumulate unique links
       console.log(`Accumulated transaction links after page ${currentPage}:`, transactionLinks.length, 'links:', transactionLinks);
 
-      // Check for next page (updated selector and error handling)
+      // Check for next page (updated selector with detailed disabled check)
       try {
         hasNextPage = await page.evaluate(() => {
-          const nextButton = document.querySelector('button.inline-flex'); // Simplified to match Solscan’s button
-          console.log('Next button found:', !!nextButton, 'Classes:', nextButton ? nextButton.classList.toString() : 'N/A', 'Disabled:', nextButton ? nextButton.classList.contains('disabled') : 'N/A');
-          return !!nextButton && !nextButton.classList.contains('disabled'); // Check for disabled state explicitly
+          const nextButton = document.querySelector('button.inline-flex');
+          console.log('Next button found:', !!nextButton, 'Classes:', nextButton ? nextButton.classList.toString() : 'N/A', 
+                      'Disabled:', nextButton ? nextButton.classList.contains('disabled') : 'N/A',
+                      'Pointer-events-none:', nextButton ? nextButton.classList.contains('pointer-events-none') : 'N/A');
+          return !!nextButton && !nextButton.classList.contains('disabled') && !nextButton.classList.contains('pointer-events-none');
         });
       } catch (evalError) {
         console.error('Error evaluating next button:', evalError);
