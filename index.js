@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer');
 const nodemailer = require('nodemailer');
 const cron = require('node-cron');
+const fs = require('fs').promises; // Use promises for async file operations
 
 // Set up process event listeners to catch unexpected errors
 process.on('uncaughtException', (error) => {
@@ -23,27 +24,27 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1); // Exit with failure code
 });
 
-// Environment variable name for seen transactions
-const SEEN_TRANSACTIONS_ENV = 'SEEN_TRANSACTIONS';
+// File path for storing seen transactions
+const SEEN_TRANSACTIONS_FILE = 'seen_transactions.json';
 
-// Function to load seen transactions from environment variable
-function loadSeenTransactions() {
+// Function to load seen transactions from file
+async function loadSeenTransactions() {
   try {
-    const data = process.env[SEEN_TRANSACTIONS_ENV] || '[]'; // Default to empty array if not set
+    const data = await fs.readFile(SEEN_TRANSACTIONS_FILE, 'utf8');
     return new Set(JSON.parse(data));
   } catch (error) {
-    console.warn('Error loading seen transactions from environment variable, starting with empty set:', error);
-    return new Set(); // Start with empty set if parsing fails
+    console.warn('No seen transactions file found or error loading, starting with empty set:', error);
+    return new Set(); // Start with empty set if file doesn’t exist or there’s an error
   }
 }
 
-// Function to save seen transactions to environment variable
+// Function to save seen transactions to file
 async function saveSeenTransactions(seenTransactions) {
   try {
-    process.env[SEEN_TRANSACTIONS_ENV] = JSON.stringify([...seenTransactions], null, 2);
-    console.log('Saved seen transactions to environment variable');
+    await fs.writeFile(SEEN_TRANSACTIONS_FILE, JSON.stringify([...seenTransactions], null, 2), 'utf8');
+    console.log('Saved seen transactions to file');
   } catch (error) {
-    console.error('Error saving seen transactions to environment variable:', error);
+    console.error('Error saving seen transactions:', error);
   }
 }
 
@@ -96,8 +97,8 @@ async function checkTransactions() {
       // Wait for unique transaction links
       await page.waitForFunction(() => {
         const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
-        return links.length > 0 && links.some(link => !document.querySelector(`a[href="${link.getAttribute('href')}"]`).classList.contains('loaded'));
-      }, { timeout: 20000 });
+        return links.length > 0 && links.some(link => link.textContent.trim().length > 0); // Ensure links have content
+      }, { timeout: 30000 });
       console.log(`Waited for unique transaction links on page ${pageNum}`);
 
       // Wait for network to stabilize after dynamic update
@@ -109,7 +110,7 @@ async function checkTransactions() {
     }
 
     // Load seen transactions
-    const seenTransactions = loadSeenTransactions();
+    const seenTransactions = await loadSeenTransactions();
     console.log('Loaded seen transactions:', seenTransactions.size, 'transactions');
 
     // Filter out already seen transactions
@@ -157,8 +158,6 @@ async function processPage(page, transactionLinks, pageNum) {
     console.log('Extracting transaction links from page...');
     const pageLinks = await page.evaluate(() => {
       const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
-      // Mark links as loaded for debugging
-      links.forEach(link => link.classList.add('loaded'));
       return links.map(link => `https://solscan.io${link.getAttribute('href')}`);
     });
     console.log(`Transaction links extracted for page ${pageNum}:`, pageLinks.length, 'links:', pageLinks);
