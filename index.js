@@ -45,51 +45,36 @@ async function checkTransactions() {
 
     const baseUrl = 'https://solscan.io/account/LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo?instruction=initializePositionByOperator';
     let currentPage = 1;
-    let hasNextPage = true;
 
-    while (hasNextPage && currentPage <= 5) { // Limit to first 5 pages
-      console.log(`Navigating to page ${currentPage}... URL: ${baseUrl}&page=${currentPage}`);
-      await page.goto(`${baseUrl}&page=${currentPage}`, { waitUntil: 'networkidle2', timeout: 30000 });
-      console.log(`Navigated to page ${currentPage} - Page content loaded`);
+    // Start on page 1
+    console.log(`Navigating to page 1... URL: ${baseUrl}`);
+    await page.goto(baseUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    console.log('Navigated to page 1 - Page content loaded');
 
-      // Wait for transaction links to ensure dynamic content loads
-      await page.waitForSelector('a[href^="/tx/"]', { timeout: 5000 });
-      console.log(`Waited for transaction links on page ${currentPage}`);
+    // Wait for transaction links on page 1
+    await page.waitForSelector('a[href^="/tx/"]', { timeout: 10000 });
+    console.log('Waited for transaction links on page 1');
 
-      // Safely get page content as a string and log a snippet
-      try {
-        const pageContent = await page.content();
-        const contentString = pageContent.toString(); // Convert Buffer to string
-        console.log(`Navigated to page ${currentPage} - HTML snippet:`, contentString.substring(0, 200));
-      } catch (contentError) {
-        console.error('Error getting page content:', contentError);
-      }
+    // Process page 1
+    await processPage(page, transactionLinks, 1);
 
-      console.log('Extracting transaction links from page...');
-      const pageLinks = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
-        return links.map(link => `https://solscan.io${link.getAttribute('href')}`);
-      });
-      console.log(`Transaction links extracted for page ${currentPage}:`, pageLinks.length, 'links:', pageLinks);
+    // Navigate to pages 2–5 by clicking the "Next" button
+    for (let pageNum = 2; pageNum <= 5; pageNum++) {
+      console.log(`Navigating to page ${pageNum} by clicking Next button...`);
+      await page.waitForSelector('button.inline-flex', { timeout: 5000 }); // Wait for the Next button
+      await page.click('button.inline-flex'); // Click the Next button
+      console.log(`Clicked Next button to navigate to page ${pageNum}`);
 
-      transactionLinks = [...new Set([...transactionLinks, ...pageLinks])]; // Accumulate unique links
-      console.log(`Accumulated transaction links after page ${currentPage}:`, transactionLinks.length, 'links:', transactionLinks);
+      // Wait for the page to load dynamically
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+      console.log(`Navigated to page ${pageNum} - Page content loaded`);
 
-      // Check for next page (updated selector with detailed disabled check)
-      try {
-        hasNextPage = await page.evaluate(() => {
-          const nextButton = document.querySelector('button.inline-flex');
-          console.log('Next button found:', !!nextButton, 'Classes:', nextButton ? nextButton.classList.toString() : 'N/A', 
-                      'Disabled:', nextButton ? nextButton.classList.contains('disabled') : 'N/A',
-                      'Pointer-events-none:', nextButton ? nextButton.classList.contains('pointer-events-none') : 'N/A');
-          return !!nextButton && !nextButton.classList.contains('disabled') && !nextButton.classList.contains('pointer-events-none');
-        });
-      } catch (evalError) {
-        console.error('Error evaluating next button:', evalError);
-        hasNextPage = false; // Stop if evaluation fails
-      }
-      console.log(`Next page available: ${hasNextPage}`);
-      currentPage++;
+      // Wait for transaction links on the new page
+      await page.waitForSelector('a[href^="/tx/"]', { timeout: 10000 });
+      console.log(`Waited for transaction links on page ${pageNum}`);
+
+      // Process the current page
+      await processPage(page, transactionLinks, pageNum);
     }
 
     console.log('Total transaction links accumulated:', transactionLinks.length, 'links:', transactionLinks);
@@ -112,6 +97,37 @@ async function checkTransactions() {
     });
   }
   console.log('Checking transactions - END:', new Date().toISOString(), 'PID:', process.pid);
+}
+
+// Helper function to process each page and extract links
+async function processPage(page, transactionLinks, pageNum) {
+  try {
+    // Wait for network to be idle after dynamic loading
+    await page.waitForNetworkIdle({ timeout: 5000 });
+    console.log(`Network idle after dynamic loading on page ${pageNum}`);
+
+    // Safely get page content as a string and log a snippet
+    try {
+      const pageContent = await page.content();
+      const contentString = pageContent.toString(); // Convert Buffer to string
+      console.log(`Navigated to page ${pageNum} - HTML snippet:`, contentString.substring(0, 200));
+    } catch (contentError) {
+      console.error('Error getting page content:', contentError);
+    }
+
+    console.log('Extracting transaction links from page...');
+    const pageLinks = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
+      return links.map(link => `https://solscan.io${link.getAttribute('href')}`);
+    });
+    console.log(`Transaction links extracted for page ${pageNum}:`, pageLinks.length, 'links:', pageLinks);
+
+    transactionLinks.push(...pageLinks); // Accumulate all links (simpler than Set for now)
+    transactionLinks = [...new Set(transactionLinks)]; // Remove duplicates
+    console.log(`Accumulated transaction links after page ${pageNum}:`, transactionLinks.length, 'links:', transactionLinks);
+  } catch (error) {
+    console.error(`Error processing page ${pageNum}:`, error);
+  }
 }
 
 // Function to send email notifications
