@@ -23,6 +23,30 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1); // Exit with failure code
 });
 
+// Environment variable name for seen transactions
+const SEEN_TRANSACTIONS_ENV = 'SEEN_TRANSACTIONS';
+
+// Function to load seen transactions from environment variable
+function loadSeenTransactions() {
+  try {
+    const data = process.env[SEEN_TRANSACTIONS_ENV] || '[]'; // Default to empty array if not set
+    return new Set(JSON.parse(data));
+  } catch (error) {
+    console.warn('Error loading seen transactions from environment variable, starting with empty set:', error);
+    return new Set(); // Start with empty set if parsing fails
+  }
+}
+
+// Function to save seen transactions to environment variable
+async function saveSeenTransactions(seenTransactions) {
+  try {
+    process.env[SEEN_TRANSACTIONS_ENV] = JSON.stringify([...seenTransactions], null, 2);
+    console.log('Saved seen transactions to environment variable');
+  } catch (error) {
+    console.error('Error saving seen transactions to environment variable:', error);
+  }
+}
+
 // Function to check transactions on Solscan
 async function checkTransactions() {
   console.log('Checking transactions - START:', new Date().toISOString(), 'PID:', process.pid);
@@ -65,9 +89,16 @@ async function checkTransactions() {
       await page.click('button.inline-flex'); // Click the Next button
       console.log(`Clicked Next button to navigate to page ${pageNum}`);
 
-      // Wait for the page to load dynamically (check for new transaction links)
+      // Wait for the page to load dynamically (multiple checks)
       await page.waitForFunction('document.querySelectorAll("a[href^=\'/tx/\']").length > 0', { timeout: 20000 });
       console.log(`Waited for new transaction links on page ${pageNum}`);
+
+      // Wait for unique transaction links
+      await page.waitForFunction(() => {
+        const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
+        return links.length > 0 && links.some(link => !document.querySelector(`a[href="${link.getAttribute('href')}"]`).classList.contains('loaded'));
+      }, { timeout: 20000 });
+      console.log(`Waited for unique transaction links on page ${pageNum}`);
 
       // Wait for network to stabilize after dynamic update
       await page.waitForNetworkIdle({ timeout: 10000 });
@@ -77,17 +108,29 @@ async function checkTransactions() {
       await processPage(page, transactionLinks, pageNum);
     }
 
-    console.log('Total transaction links accumulated:', transactionLinks.length, 'links:', transactionLinks);
+    // Load seen transactions
+    const seenTransactions = loadSeenTransactions();
+    console.log('Loaded seen transactions:', seenTransactions.size, 'transactions');
+
+    // Filter out already seen transactions
+    const newTransactions = transactionLinks.filter(link => !seenTransactions.has(link));
+    console.log('New transactions found:', newTransactions.length, 'transactions:', newTransactions);
+
+    // Send email only if there are new transactions
+    if (newTransactions.length > 0) {
+      console.log('Sending email with new transaction links...');
+      sendEmail(newTransactions);
+      // Add new transactions to seen set
+      newTransactions.forEach(link => seenTransactions.add(link));
+      await saveSeenTransactions(seenTransactions);
+    } else {
+      console.log('No new transactions found, skipping email.');
+    }
+
+    console.log('Total transaction links accumulated (including seen):', transactionLinks.length, 'links:', transactionLinks);
     console.log('Closing browser...');
     await browser.close();
     console.log('Browser closed');
-
-    if (transactionLinks.length > 0) {
-      console.log('Sending email with transaction links...');
-      sendEmail(transactionLinks);
-    } else {
-      console.log('No transactions found.');
-    }
   } catch (error) {
     console.error('Error in checkTransactions - CRASH:', {
       message: error.message,
@@ -114,6 +157,8 @@ async function processPage(page, transactionLinks, pageNum) {
     console.log('Extracting transaction links from page...');
     const pageLinks = await page.evaluate(() => {
       const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
+      // Mark links as loaded for debugging
+      links.forEach(link => link.classList.add('loaded'));
       return links.map(link => `https://solscan.io${link.getAttribute('href')}`);
     });
     console.log(`Transaction links extracted for page ${pageNum}:`, pageLinks.length, 'links:', pageLinks);
@@ -141,7 +186,7 @@ function sendEmail(links) {
     from: 'kyle.txma@gmail.com',
     to: 'kyle.txma@gmail.com',
     subject: 'New Transactions on Solscan',
-    text: `Found transactions:\n\n${links.join('\n')}`
+    text: `Found new transactions:\n\n${links.join('\n')}`
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
