@@ -5,12 +5,12 @@ const cron = require('node-cron');
 // Set up process event listeners to catch unexpected errors
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
-  process.exit(1); // Exit with failure code to signal a crash
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1); // Exit with failure code
+  process.exit(1);
 });
 
 // Function to check transactions on Solscan
@@ -28,17 +28,29 @@ async function checkTransactions() {
     const page = await browser.newPage();
     console.log('New page created');
 
-    const url = 'https://solscan.io/account/LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo?instruction=initializePositionByOperator';
-    console.log('Navigating to Solscan page...');
-    await page.goto(url, { waitUntil: 'networkidle2' });
-    console.log('Navigated to Solscan page');
+    const baseUrl = 'https://solscan.io/account/LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo?instruction=initializePositionByOperator';
+    let currentPage = 1;
+    let hasNextPage = true;
 
-    console.log('Extracting transaction links...');
-    const transactionLinks = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
-      return links.map(link => `https://solscan.io${link.getAttribute('href')}`);
-    });
-    console.log('Transaction links extracted:', transactionLinks);
+    while (hasNextPage) {
+      console.log(`Navigating to page ${currentPage}...`);
+      await page.goto(`${baseUrl}&page=${currentPage}`, { waitUntil: 'networkidle2' });
+      console.log(`Navigated to page ${currentPage}`);
+
+      console.log('Extracting transaction links...');
+      const transactionLinks = await page.evaluate(() => {
+        const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
+        return links.map(link => `https://solscan.io${link.getAttribute('href')}`);
+      });
+      console.log('Transaction links extracted:', transactionLinks);
+
+      // Check for next page (adjust selector based on Solscan’s HTML)
+      hasNextPage = await page.evaluate(() => {
+        const nextButton = document.querySelector('a.pagination-next'); // Example selector—update if needed
+        return nextButton && !nextButton.classList.contains('disabled');
+      });
+      currentPage++;
+    }
 
     console.log('Closing browser...');
     await browser.close();
@@ -48,7 +60,7 @@ async function checkTransactions() {
       console.log('Sending email with transaction links...');
       sendEmail(transactionLinks);
     } else {
-      console.log('No new transactions found.');
+      console.log('No transactions found.');
     }
   } catch (error) {
     console.error('Error in checkTransactions:', error);
@@ -60,8 +72,8 @@ function sendEmail(links) {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: 'kyle.txma@gmail.com',  // Replace with your email
-      pass: 'kbum xukh rxlh zoqp'   // Replace with your app-specific password
+      user: 'kyle.txma@gmail.com',  // Your email
+      pass: 'kbum xukh rxlh zoqp'   // Your app-specific password
     }
   });
 
@@ -69,7 +81,7 @@ function sendEmail(links) {
     from: 'kyle.txma@gmail.com',
     to: 'kyle.txma@gmail.com',
     subject: 'New Transactions on Solscan',
-    text: `Found new transactions:\n\n${links.join('\n')}`
+    text: `Found transactions:\n\n${links.join('\n')}`
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
