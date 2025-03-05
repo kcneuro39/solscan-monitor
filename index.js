@@ -7,7 +7,8 @@ process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception - CRASH:', {
     message: error.message,
     stack: error.stack,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    pid: process.pid
   });
   process.exit(1); // Exit with failure code
 });
@@ -16,15 +17,20 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection - CRASH:', {
     reason: reason.message || reason,
     promise: promise,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    pid: process.pid
   });
   process.exit(1); // Exit with failure code
 });
 
 // Function to check transactions on Solscan
 async function checkTransactions() {
-  console.log('Checking transactions - START:', new Date().toISOString());
+  console.log('Checking transactions - START:', new Date().toISOString(), 'PID:', process.pid);
+  let transactionLinks = []; // Define transactionLinks outside the loop
   try {
+    console.log('Waiting 10 seconds before launching browser to avoid resource spike...');
+    await new Promise(resolve => setTimeout(resolve, 10000)); // Delay to prevent immediate resource use
+
     console.log('Launching browser...');
     const browser = await puppeteer.launch({
       headless: true,
@@ -47,11 +53,12 @@ async function checkTransactions() {
       console.log(`Navigated to page ${currentPage}`);
 
       console.log('Extracting transaction links...');
-      const transactionLinks = await page.evaluate(() => {
+      const pageLinks = await page.evaluate(() => {
         const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
         return links.map(link => `https://solscan.io${link.getAttribute('href')}`);
       });
-      console.log('Transaction links extracted:', transactionLinks);
+      console.log('Transaction links extracted for page:', pageLinks);
+      transactionLinks = transactionLinks.concat(pageLinks); // Accumulate links across pages
 
       // Check for next page (adjust selector based on Solscan’s HTML)
       hasNextPage = await page.evaluate(() => {
@@ -75,15 +82,16 @@ async function checkTransactions() {
     console.error('Error in checkTransactions - CRASH:', {
       message: error.message,
       stack: error.stack,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      pid: process.pid
     });
   }
-  console.log('Checking transactions - END:', new Date().toISOString());
+  console.log('Checking transactions - END:', new Date().toISOString(), 'PID:', process.pid);
 }
 
 // Function to send email notifications
 function sendEmail(links) {
-  console.log('Preparing to send email...');
+  console.log('Preparing to send email...', new Date().toISOString());
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -104,7 +112,8 @@ function sendEmail(links) {
       console.error('Email error - CRASH:', {
         message: error.message,
         stack: error.stack,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        pid: process.pid
       });
     } else {
       console.log('Email sent:', info.response);
@@ -113,35 +122,45 @@ function sendEmail(links) {
 }
 
 // Application startup
-console.log('Transaction monitor starting - START:', new Date().toISOString());
+console.log('Transaction monitor starting - START:', new Date().toISOString(), 'PID:', process.pid);
 
 try {
+  console.log('Running initial transaction check...');
+  await checkTransactions(); // Run immediately on startup
+
   console.log('Setting up cron job...');
   cron.schedule('0 * * * *', async () => {
     try {
-      console.log('Scheduled check starting - START:', new Date().toISOString());
+      console.log('Scheduled check starting - START:', new Date().toISOString(), 'PID:', process.pid);
       await checkTransactions();
-      console.log('Scheduled check complete - END:', new Date().toISOString());
+      console.log('Scheduled check complete - END:', new Date().toISOString(), 'PID:', process.pid);
     } catch (error) {
       console.error('Error in scheduled check - CRASH:', {
         message: error.message,
         stack: error.stack,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        pid: process.pid
       });
     }
   });
   console.log('Cron job scheduled successfully');
 } catch (error) {
-  console.error('Error scheduling cron job - CRASH:', {
+  console.error('Error scheduling cron job or initial check - CRASH:', {
     message: error.message,
     stack: error.stack,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    pid: process.pid
   });
 }
 
-console.log('Transaction monitor started - END:', new Date().toISOString());
+console.log('Transaction monitor started - END:', new Date().toISOString(), 'PID:', process.pid);
 
 // Add a heartbeat to check if the process is still running
 setInterval(() => {
-  console.log('Heartbeat: Still running -', new Date().toISOString());
+  console.log('Heartbeat: Still running -', new Date().toISOString(), 'PID:', process.pid, 'Memory:', process.memoryUsage().rss / 1024 / 1024, 'MB');
 }, 5000); // Log every 5 seconds
+
+// Add a health check to ensure the process stays alive
+setTimeout(() => {
+  console.log('Health check: Process still alive after 30 seconds -', new Date().toISOString());
+}, 30000); // Check after 30 seconds
