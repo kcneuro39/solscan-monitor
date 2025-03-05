@@ -59,7 +59,8 @@ async function checkTransactions() {
       });
       console.log(`Transaction links extracted for page ${currentPage}:`, pageLinks.length, 'links:', pageLinks);
 
-      transactionLinks = [...new Set([...transactionLinks, ...pageLinks])]; // Use Set to avoid duplicates within pages
+      transactionLinks = [...new Set([...transactionLinks, ...pageLinks])]; // Accumulate unique links
+      console.log(`Accumulated transaction links after page ${currentPage}:`, transactionLinks.length, 'links:', transactionLinks);
 
       // Check for next page (adjust selector based on Solscan’s HTML)
       hasNextPage = await page.evaluate(() => {
