@@ -48,9 +48,9 @@ async function checkTransactions() {
     let hasNextPage = true;
 
     while (hasNextPage && currentPage <= 5) { // Limit to first 5 pages
-      console.log(`Navigating to page ${currentPage}...`);
+      console.log(`Navigating to page ${currentPage}... URL: ${baseUrl}&page=${currentPage}`);
       await page.goto(`${baseUrl}&page=${currentPage}`, { waitUntil: 'networkidle2', timeout: 30000 });
-      console.log(`Navigated to page ${currentPage}`);
+      console.log(`Navigated to page ${currentPage} - Page content loaded. HTML snippet:`, await page.content().substring(0, 200)); // Log first 200 chars of HTML
 
       console.log('Extracting transaction links from page...');
       const pageLinks = await page.evaluate(() => {
@@ -59,14 +59,20 @@ async function checkTransactions() {
       });
       console.log(`Transaction links extracted for page ${currentPage}:`, pageLinks.length, 'links:', pageLinks);
 
-      transactionLinks = transactionLinks.concat(pageLinks); // Simpler accumulation without Set
+      transactionLinks = [...new Set([...transactionLinks, ...pageLinks])]; // Accumulate unique links
       console.log(`Accumulated transaction links after page ${currentPage}:`, transactionLinks.length, 'links:', transactionLinks);
 
-      // Check for next page (adjust selector based on Solscan’s HTML)
-      hasNextPage = await page.evaluate(() => {
-        const nextButton = document.querySelector('a.pagination-next'); // Example selector—update if needed
-        return nextButton && !nextButton.classList.contains('disabled');
-      });
+      // Check for next page (updated selector and error handling)
+      try {
+        hasNextPage = await page.evaluate(() => {
+          const nextButton = document.querySelector('button.inline-flex'); // Simplified to match Solscan’s button
+          console.log('Next button found:', !!nextButton, 'Classes:', nextButton ? nextButton.classList.toString() : 'N/A', 'Disabled:', nextButton ? nextButton.classList.contains('disabled') : 'N/A');
+          return !!nextButton && !nextButton.classList.contains('disabled'); // Check for disabled state explicitly
+        });
+      } catch (evalError) {
+        console.error('Error evaluating next button:', evalError);
+        hasNextPage = false; // Stop if evaluation fails
+      }
       console.log(`Next page available: ${hasNextPage}`);
       currentPage++;
     }
