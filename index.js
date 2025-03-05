@@ -6,7 +6,8 @@ const cron = require('node-cron');
 async function checkTransactions() {
   console.log('Checking transactions...');
   try {
-    // Launch Puppeteer browser with --no-sandbox flag for containerized environments
+    // Launch Puppeteer with --no-sandbox for container compatibility
+    console.log('Launching browser...');
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -14,15 +15,18 @@ async function checkTransactions() {
     console.log('Browser launched successfully');
 
     // Create a new page
+    console.log('Creating new page...');
     const page = await browser.newPage();
     console.log('New page created');
 
-    // Navigate to the Solscan account page with the specified filter
+    // Navigate to the Solscan URL
     const url = 'https://solscan.io/account/LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo?instruction=initializePositionByOperator';
+    console.log('Navigating to Solscan page...');
     await page.goto(url, { waitUntil: 'networkidle2' });
     console.log('Navigated to Solscan page');
 
-    // Extract transaction links from the page
+    // Extract transaction links
+    console.log('Extracting transaction links...');
     const transactionLinks = await page.evaluate(() => {
       const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
       return links.map(link => `https://solscan.io${link.getAttribute('href')}`);
@@ -30,12 +34,16 @@ async function checkTransactions() {
     console.log('Transaction links extracted:', transactionLinks);
 
     // Close the browser
+    console.log('Closing browser...');
     await browser.close();
     console.log('Browser closed');
 
-    // Send an email if there are new transactions
+    // Send email if transactions are found
     if (transactionLinks.length > 0) {
+      console.log('Sending email with transaction links...');
       sendEmail(transactionLinks);
+    } else {
+      console.log('No new transactions found.');
     }
   } catch (error) {
     console.error('Error in checkTransactions:', error);
@@ -44,24 +52,21 @@ async function checkTransactions() {
 
 // Function to send email notifications
 function sendEmail(links) {
-  // Configure email transporter using Nodemailer
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: 'kyle.txma@gmail.com', // Replace with your email
-      pass: 'kbum xukh rxlh zoqp'  // Replace with your app-specific password
+      user: 'kyle.txma@gmail.com',  // Your email
+      pass: 'kbum xukh rxlh zoqp'   // Your app-specific password
     }
   });
 
-  // Define email content
   const mailOptions = {
-    from: 'kyle.txma@gmail.com',    // Sender email
-    to: 'kyle.txma@gmail.com',      // Recipient email
+    from: 'kyle.txma@gmail.com',
+    to: 'kyle.txma@gmail.com',
     subject: 'New Transactions on Solscan',
     text: `Found new transactions:\n\n${links.join('\n')}`
   };
 
-  // Send the email
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
       console.error('Email error:', error);
@@ -71,10 +76,11 @@ function sendEmail(links) {
   });
 }
 
-// Schedule the transaction check to run every hour
+// Schedule the task to run every hour
 cron.schedule('0 * * * *', () => {
+  console.log('Scheduled check initiated.');
   checkTransactions();
 });
 
-// Log when the monitor starts
+// Start the monitor
 console.log('Transaction monitor started.');
