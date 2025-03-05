@@ -2,11 +2,21 @@ const puppeteer = require('puppeteer');
 const nodemailer = require('nodemailer');
 const cron = require('node-cron');
 
+// Set up process event listeners to catch unexpected errors
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1); // Exit with failure code to signal a crash
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1); // Exit with failure code
+});
+
 // Function to check transactions on Solscan
 async function checkTransactions() {
   console.log('Checking transactions...');
   try {
-    // Launch Puppeteer with --no-sandbox for container compatibility
     console.log('Launching browser...');
     const browser = await puppeteer.launch({
       headless: true,
@@ -14,18 +24,15 @@ async function checkTransactions() {
     });
     console.log('Browser launched successfully');
 
-    // Create a new page
     console.log('Creating new page...');
     const page = await browser.newPage();
     console.log('New page created');
 
-    // Navigate to the Solscan URL
     const url = 'https://solscan.io/account/LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo?instruction=initializePositionByOperator';
     console.log('Navigating to Solscan page...');
     await page.goto(url, { waitUntil: 'networkidle2' });
     console.log('Navigated to Solscan page');
 
-    // Extract transaction links
     console.log('Extracting transaction links...');
     const transactionLinks = await page.evaluate(() => {
       const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
@@ -33,12 +40,10 @@ async function checkTransactions() {
     });
     console.log('Transaction links extracted:', transactionLinks);
 
-    // Close the browser
     console.log('Closing browser...');
     await browser.close();
     console.log('Browser closed');
 
-    // Send email if transactions are found
     if (transactionLinks.length > 0) {
       console.log('Sending email with transaction links...');
       sendEmail(transactionLinks);
@@ -55,8 +60,8 @@ function sendEmail(links) {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: 'kyle.txma@gmail.com',  // Your email
-      pass: 'kbum xukh rxlh zoqp'   // Your app-specific password
+      user: 'kyle.txma@gmail.com',  // Replace with your email
+      pass: 'kbum xukh rxlh zoqp'   // Replace with your app-specific password
     }
   });
 
@@ -76,11 +81,22 @@ function sendEmail(links) {
   });
 }
 
-// Schedule the task to run every hour
-cron.schedule('0 * * * *', () => {
-  console.log('Scheduled check initiated.');
-  checkTransactions();
-});
+// Application startup
+console.log('Transaction monitor starting...');
 
-// Start the monitor
+try {
+  console.log('Setting up cron job...');
+  cron.schedule('0 * * * *', async () => {
+    try {
+      console.log('Scheduled check starting...');
+      await checkTransactions();
+    } catch (error) {
+      console.error('Error in scheduled check:', error);
+    }
+  });
+  console.log('Cron job scheduled successfully');
+} catch (error) {
+  console.error('Error scheduling cron job:', error);
+}
+
 console.log('Transaction monitor started.');
