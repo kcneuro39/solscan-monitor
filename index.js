@@ -32,7 +32,7 @@ async function checkTransactions() {
     let currentPage = 1;
     let hasNextPage = true;
 
-    while (hasNextPage) {
+    while (hasNextPage && currentPage <= 5) { // Limit to first 5 pages
       console.log(`Navigating to page ${currentPage}...`);
       await page.goto(`${baseUrl}&page=${currentPage}`, { waitUntil: 'networkidle2' });
       console.log(`Navigated to page ${currentPage}`);
