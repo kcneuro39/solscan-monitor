@@ -4,23 +4,32 @@ const cron = require('node-cron');
 
 // Set up process event listeners to catch unexpected errors
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
+  console.error('Uncaught Exception - CRASH:', {
+    message: error.message,
+    stack: error.stack,
+    timestamp: new Date().toISOString()
+  });
+  process.exit(1); // Exit with failure code
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  console.error('Unhandled Rejection - CRASH:', {
+    reason: reason.message || reason,
+    promise: promise,
+    timestamp: new Date().toISOString()
+  });
+  process.exit(1); // Exit with failure code
 });
 
 // Function to check transactions on Solscan
 async function checkTransactions() {
-  console.log('Checking transactions...');
+  console.log('Checking transactions - START:', new Date().toISOString());
   try {
     console.log('Launching browser...');
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      timeout: 30000 // 30-second timeout for browser launch
     });
     console.log('Browser launched successfully');
 
@@ -34,7 +43,7 @@ async function checkTransactions() {
 
     while (hasNextPage && currentPage <= 5) { // Limit to first 5 pages
       console.log(`Navigating to page ${currentPage}...`);
-      await page.goto(`${baseUrl}&page=${currentPage}`, { waitUntil: 'networkidle2' });
+      await page.goto(`${baseUrl}&page=${currentPage}`, { waitUntil: 'networkidle2', timeout: 30000 });
       console.log(`Navigated to page ${currentPage}`);
 
       console.log('Extracting transaction links...');
@@ -63,12 +72,18 @@ async function checkTransactions() {
       console.log('No transactions found.');
     }
   } catch (error) {
-    console.error('Error in checkTransactions:', error);
+    console.error('Error in checkTransactions - CRASH:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
   }
+  console.log('Checking transactions - END:', new Date().toISOString());
 }
 
 // Function to send email notifications
 function sendEmail(links) {
+  console.log('Preparing to send email...');
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -86,7 +101,11 @@ function sendEmail(links) {
 
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
-      console.error('Email error:', error);
+      console.error('Email error - CRASH:', {
+        message: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
     } else {
       console.log('Email sent:', info.response);
     }
@@ -94,21 +113,35 @@ function sendEmail(links) {
 }
 
 // Application startup
-console.log('Transaction monitor starting...');
+console.log('Transaction monitor starting - START:', new Date().toISOString());
 
 try {
   console.log('Setting up cron job...');
   cron.schedule('0 * * * *', async () => {
     try {
-      console.log('Scheduled check starting...');
+      console.log('Scheduled check starting - START:', new Date().toISOString());
       await checkTransactions();
+      console.log('Scheduled check complete - END:', new Date().toISOString());
     } catch (error) {
-      console.error('Error in scheduled check:', error);
+      console.error('Error in scheduled check - CRASH:', {
+        message: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
     }
   });
   console.log('Cron job scheduled successfully');
 } catch (error) {
-  console.error('Error scheduling cron job:', error);
+  console.error('Error scheduling cron job - CRASH:', {
+    message: error.message,
+    stack: error.stack,
+    timestamp: new Date().toISOString()
+  });
 }
 
-console.log('Transaction monitor started.');
+console.log('Transaction monitor started - END:', new Date().toISOString());
+
+// Add a heartbeat to check if the process is still running
+setInterval(() => {
+  console.log('Heartbeat: Still running -', new Date().toISOString());
+}, 5000); // Log every 5 seconds
