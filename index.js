@@ -52,22 +52,25 @@ async function checkTransactions() {
       await page.goto(`${baseUrl}&page=${currentPage}`, { waitUntil: 'networkidle2', timeout: 30000 });
       console.log(`Navigated to page ${currentPage}`);
 
-      console.log('Extracting transaction links...');
+      console.log('Extracting transaction links from page...');
       const pageLinks = await page.evaluate(() => {
         const links = Array.from(document.querySelectorAll('a[href^="/tx/"]'));
         return links.map(link => `https://solscan.io${link.getAttribute('href')}`);
       });
-      console.log('Transaction links extracted for page:', pageLinks);
-      transactionLinks = transactionLinks.concat(pageLinks); // Accumulate links across pages
+      console.log(`Transaction links extracted for page ${currentPage}:`, pageLinks.length, 'links:', pageLinks);
+
+      transactionLinks = [...new Set([...transactionLinks, ...pageLinks])]; // Use Set to avoid duplicates within pages
 
       // Check for next page (adjust selector based on Solscan’s HTML)
       hasNextPage = await page.evaluate(() => {
         const nextButton = document.querySelector('a.pagination-next'); // Example selector—update if needed
         return nextButton && !nextButton.classList.contains('disabled');
       });
+      console.log(`Next page available: ${hasNextPage}`);
       currentPage++;
     }
 
+    console.log('Total transaction links accumulated:', transactionLinks.length, 'links:', transactionLinks);
     console.log('Closing browser...');
     await browser.close();
     console.log('Browser closed');
