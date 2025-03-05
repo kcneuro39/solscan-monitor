@@ -50,7 +50,16 @@ async function checkTransactions() {
     while (hasNextPage && currentPage <= 5) { // Limit to first 5 pages
       console.log(`Navigating to page ${currentPage}... URL: ${baseUrl}&page=${currentPage}`);
       await page.goto(`${baseUrl}&page=${currentPage}`, { waitUntil: 'networkidle2', timeout: 30000 });
-      console.log(`Navigated to page ${currentPage} - Page content loaded. HTML snippet:`, await page.content().substring(0, 200)); // Log first 200 chars of HTML
+      console.log(`Navigated to page ${currentPage} - Page content loaded`);
+
+      // Safely get page content as a string and log a snippet
+      try {
+        const pageContent = await page.content();
+        const contentString = pageContent.toString(); // Convert Buffer to string
+        console.log(`Navigated to page ${currentPage} - HTML snippet:`, contentString.substring(0, 200));
+      } catch (contentError) {
+        console.error('Error getting page content:', contentError);
+      }
 
       console.log('Extracting transaction links from page...');
       const pageLinks = await page.evaluate(() => {
