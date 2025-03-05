@@ -4,7 +4,10 @@ const cron = require('node-cron');
 
 async function checkTransactions() {
   // Launch a headless browser
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({
+  headless: true,
+  args: ['--no-sandbox', '--disable-setuid-sandbox']
+});
   const page = await browser.newPage();
 
   // Go to the Solscan page with your filter
