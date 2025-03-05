@@ -35,7 +35,7 @@ async function checkTransactions() {
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      timeout: 30000 // 30-second timeout for browser launch
+      timeout: 60000 // Increased timeout for browser launch
     });
     console.log('Browser launched successfully');
 
@@ -48,11 +48,11 @@ async function checkTransactions() {
 
     // Start on page 1
     console.log(`Navigating to page 1... URL: ${baseUrl}`);
-    await page.goto(baseUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.goto(baseUrl, { waitUntil: 'networkidle2', timeout: 60000 });
     console.log('Navigated to page 1 - Page content loaded');
 
     // Wait for transaction links on page 1
-    await page.waitForSelector('a[href^="/tx/"]', { timeout: 10000 });
+    await page.waitForSelector('a[href^="/tx/"]', { timeout: 20000 });
     console.log('Waited for transaction links on page 1');
 
     // Process page 1
@@ -61,17 +61,17 @@ async function checkTransactions() {
     // Navigate to pages 2–5 by clicking the "Next" button
     for (let pageNum = 2; pageNum <= 5; pageNum++) {
       console.log(`Navigating to page ${pageNum} by clicking Next button...`);
-      await page.waitForSelector('button.inline-flex', { timeout: 5000 }); // Wait for the Next button
+      await page.waitForSelector('button.inline-flex', { timeout: 10000 }); // Wait for the Next button
       await page.click('button.inline-flex'); // Click the Next button
       console.log(`Clicked Next button to navigate to page ${pageNum}`);
 
-      // Wait for the page to load dynamically
-      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
-      console.log(`Navigated to page ${pageNum} - Page content loaded`);
+      // Wait for the page to load dynamically (check for new transaction links)
+      await page.waitForFunction('document.querySelectorAll("a[href^=\'/tx/\']").length > 0', { timeout: 20000 });
+      console.log(`Waited for new transaction links on page ${pageNum}`);
 
-      // Wait for transaction links on the new page
-      await page.waitForSelector('a[href^="/tx/"]', { timeout: 10000 });
-      console.log(`Waited for transaction links on page ${pageNum}`);
+      // Wait for network to stabilize after dynamic update
+      await page.waitForNetworkIdle({ timeout: 10000 });
+      console.log(`Network idle after dynamic loading on page ${pageNum}`);
 
       // Process the current page
       await processPage(page, transactionLinks, pageNum);
@@ -102,10 +102,6 @@ async function checkTransactions() {
 // Helper function to process each page and extract links
 async function processPage(page, transactionLinks, pageNum) {
   try {
-    // Wait for network to be idle after dynamic loading
-    await page.waitForNetworkIdle({ timeout: 5000 });
-    console.log(`Network idle after dynamic loading on page ${pageNum}`);
-
     // Safely get page content as a string and log a snippet
     try {
       const pageContent = await page.content();
@@ -122,7 +118,7 @@ async function processPage(page, transactionLinks, pageNum) {
     });
     console.log(`Transaction links extracted for page ${pageNum}:`, pageLinks.length, 'links:', pageLinks);
 
-    transactionLinks.push(...pageLinks); // Accumulate all links (simpler than Set for now)
+    transactionLinks.push(...pageLinks); // Accumulate all links
     transactionLinks = [...new Set(transactionLinks)]; // Remove duplicates
     console.log(`Accumulated transaction links after page ${pageNum}:`, transactionLinks.length, 'links:', transactionLinks);
   } catch (error) {
