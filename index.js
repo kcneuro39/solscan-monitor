@@ -121,39 +121,41 @@ function sendEmail(links) {
   });
 }
 
-// Application startup
-console.log('Transaction monitor starting - START:', new Date().toISOString(), 'PID:', process.pid);
+// Wrap the startup code in an async IIFE to handle await correctly
+(async () => {
+  console.log('Transaction monitor starting - START:', new Date().toISOString(), 'PID:', process.pid);
 
-try {
-  console.log('Running initial transaction check...');
-  await checkTransactions(); // Run immediately on startup
+  try {
+    console.log('Running initial transaction check...');
+    await checkTransactions(); // Run immediately on startup
 
-  console.log('Setting up cron job...');
-  cron.schedule('0 * * * *', async () => {
-    try {
-      console.log('Scheduled check starting - START:', new Date().toISOString(), 'PID:', process.pid);
-      await checkTransactions();
-      console.log('Scheduled check complete - END:', new Date().toISOString(), 'PID:', process.pid);
-    } catch (error) {
-      console.error('Error in scheduled check - CRASH:', {
-        message: error.message,
-        stack: error.stack,
-        timestamp: new Date().toISOString(),
-        pid: process.pid
-      });
-    }
-  });
-  console.log('Cron job scheduled successfully');
-} catch (error) {
-  console.error('Error scheduling cron job or initial check - CRASH:', {
-    message: error.message,
-    stack: error.stack,
-    timestamp: new Date().toISOString(),
-    pid: process.pid
-  });
-}
+    console.log('Setting up cron job...');
+    cron.schedule('0 * * * *', async () => {
+      try {
+        console.log('Scheduled check starting - START:', new Date().toISOString(), 'PID:', process.pid);
+        await checkTransactions();
+        console.log('Scheduled check complete - END:', new Date().toISOString(), 'PID:', process.pid);
+      } catch (error) {
+        console.error('Error in scheduled check - CRASH:', {
+          message: error.message,
+          stack: error.stack,
+          timestamp: new Date().toISOString(),
+          pid: process.pid
+        });
+      }
+    });
+    console.log('Cron job scheduled successfully');
+  } catch (error) {
+    console.error('Error scheduling cron job or initial check - CRASH:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+      pid: process.pid
+    });
+  }
 
-console.log('Transaction monitor started - END:', new Date().toISOString(), 'PID:', process.pid);
+  console.log('Transaction monitor started - END:', new Date().toISOString(), 'PID:', process.pid);
+})();
 
 // Add a heartbeat to check if the process is still running
 setInterval(() => {
